@@ -841,6 +841,12 @@ refreshLineOptions();
 
 // ---------- 两版比较 ----------
 
+// /api/compare 成功响应协议：分钟字段（最紧上下界 base_low/base_high/revised_low/revised_high、
+// 端点差值 low_delta/high_delta、变化证据各版界值 bound 与推导路径每环的界值 bound 和边权
+// weight）一律为十进制字符串，无界端点为 null；行号 lines、路径行号 line 与各项计数保持数值。
+// 分钟可能超出 Number.MAX_SAFE_INTEGER（如 9007199254740993）：正负差值与证据一律按 BigInt
+// 精确整数格式化，全程不经过 Number，界值字符串直接展示。
+
 const KIND_LABEL = {
   changed: "变化",
   unchanged: "未变",
@@ -857,10 +863,12 @@ const CHANGE_LABEL = {
 
 const ENDPOINT_LABEL = { lower: "下界", upper: "上界" };
 
+// 端点差值（十进制字符串）：按 BigInt 精确判断正负，大整数分钟也不失真
 function fmtDelta(delta) {
   if (delta === null || delta === undefined) return { text: "—", cls: "delta-na" };
-  if (delta > 0) return { text: `+${delta}`, cls: "delta-up" };
-  if (delta < 0) return { text: `−${Math.abs(delta)}`, cls: "delta-down" };
+  const d = BigInt(delta);
+  if (d > 0n) return { text: `+${d}`, cls: "delta-up" };
+  if (d < 0n) return { text: `−${-d}`, cls: "delta-down" };
   return { text: "0", cls: "delta-zero" };
 }
 

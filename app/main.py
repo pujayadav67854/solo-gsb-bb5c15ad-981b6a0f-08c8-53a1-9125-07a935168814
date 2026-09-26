@@ -95,7 +95,9 @@ def api_redundancy(req: RedundancyRequest) -> dict:
 
 @app.post("/api/compare")
 def api_compare(req: CompareRequest) -> dict:
-    # 两版各自独立校验与联立；任一版无效或矛盾时，分别带回该版错误/矛盾链，不生成差异结论
+    # 两版各自独立校验与联立；任一版无效或矛盾时，分别带回该版错误/矛盾链，不生成差异结论。
+    # 成功响应的分钟字段（最紧上下界、端点差值、证据界值与推导路径界值/边权）为十进制字符串，
+    # 无界为 null，行号与计数保持数值（分钟可能超出 JS 安全整数范围）
     return compare_texts(req.base or "", req.revised or "")
 
 
