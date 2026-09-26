@@ -27,7 +27,7 @@ from .solver import (
     suggest_repairs,
 )
 
-app = FastAPI(title="口述史事件时间线核对", version="1.11.0")
+app = FastAPI(title="口述史事件时间线核对", version="1.12.0")
 
 
 class SolveRequest(BaseModel):
@@ -95,7 +95,9 @@ def api_redundancy(req: RedundancyRequest) -> dict:
 
 @app.post("/api/compare")
 def api_compare(req: CompareRequest) -> dict:
-    # 两版各自独立校验与联立；任一版无效或矛盾时，分别带回该版错误/矛盾链，不生成差异结论
+    # 两版各自独立校验与联立；任一版无效或矛盾时，分别带回该版错误/矛盾链，不生成差异结论；
+    # 成功响应的分钟字段（最紧上下界、端点差值、推导路径界值与边权）为十进制字符串
+    # （无界为 null），行号与计数保持数值——超出 JS 安全整数范围的分钟也不会失真
     return compare_texts(req.base or "", req.revised or "")
 
 

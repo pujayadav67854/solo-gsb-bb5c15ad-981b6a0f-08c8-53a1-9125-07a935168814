@@ -841,6 +841,11 @@ refreshLineOptions();
 
 // ---------- 两版比较 ----------
 
+// /api/compare 成功响应协议：分钟字段（最紧上下界、端点差值、证据界值与推导路径的
+// 界值、边权）一律为十进制字符串，无界端点为 null；行号与计数保持数值。
+// 分钟可能超出 Number.MAX_SAFE_INTEGER（如 9007199254740993），正负差值的判定与
+// 取绝对值一律用 BigInt 精确整数运算，展示时直接输出其十进制字符串，全程不经过 Number。
+
 const KIND_LABEL = {
   changed: "变化",
   unchanged: "未变",
@@ -857,10 +862,13 @@ const CHANGE_LABEL = {
 
 const ENDPOINT_LABEL = { lower: "下界", upper: "上界" };
 
+// 端点差值（十进制字符串分钟）：用 BigInt 精确判定正负并取绝对值，
+// 超出 JS 安全整数范围的差值也不会被截断或转浮点
 function fmtDelta(delta) {
   if (delta === null || delta === undefined) return { text: "—", cls: "delta-na" };
-  if (delta > 0) return { text: `+${delta}`, cls: "delta-up" };
-  if (delta < 0) return { text: `−${Math.abs(delta)}`, cls: "delta-down" };
+  const d = BigInt(delta);
+  if (d > 0n) return { text: `+${d}`, cls: "delta-up" };
+  if (d < 0n) return { text: `−${-d}`, cls: "delta-down" };
   return { text: "0", cls: "delta-zero" };
 }
 

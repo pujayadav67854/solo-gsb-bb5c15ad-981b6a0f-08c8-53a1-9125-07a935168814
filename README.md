@@ -7,7 +7,7 @@
 - 若无矛盾，返回一条以**最早事件为第 0 分钟**、满足全部区间的可行时间线，并逐条核对每个区间；
 - **绝对时间锚定**：在区间文本旁粘贴多行 `事件名,YYYY-MM-DD HH:MM` 锚点（同一无时区本地时间），后端把每个锚点作为**事件相对统一零点的等式**与区间一起联立——同名锚点重复也参与判定；锚点与区间或彼此冲突时返回含**区间行号、锚点行号与所用界值**的闭合矛盾链；可解时只为**与锚点连通**的事件显示绝对日期时刻（精确点或范围），其余标为**“未定位”**，不把任何任意平移量当作真实日期；
 - **约束冗余核对**：任选一条原始行，删去该行对应的上、下界约束后，求其余约束对这两个事件时间差的**最紧下界与上界**——推不出的端点标为**无界**，有界端点给出**推导路径、原始行号与所用界值**；仅当推导区间完全落在所选行区间内时判为**“可删”**，否则标为**“必要”**；
-- **两版比较**：分别粘贴**基准文本**与**修订文本**，后端对两版**各自独立校验、独立联立**后，以**基准中首次出现的共同事件**为两版**共享参考事件**，对每个共同事件分别求它相对参考事件的**最紧时间差上下界**（复用冗余核对同款最短路推导）：**任一端点（下界或上界）在两版间不同才计为变化**，**不比较两版各自“最早事件归零”的样本时刻**（新增事件会改变另一版的归零原点，样本时刻差只是整体平移假象）；表格给出**两版区间与端点差值**，变化端点附**两版各自的原始行号、所用界值与连续推导路径**（修订版路径上的行另标注相对基准“已修改/新增/区间未改”）。事件**仅在两版中均与参考连通时可比**，否则标为**“不可比”**，隐藏端点差值与变化证据；**没有共同事件时只列新增、删除**；任一版无效或互相矛盾时，分别返回该版错误或闭合矛盾链，**不生成任何差异结论**；
+- **两版比较**：分别粘贴**基准文本**与**修订文本**，后端对两版**各自独立校验、独立联立**后，以**基准中首次出现的共同事件**为两版**共享参考事件**，对每个共同事件分别求它相对参考事件的**最紧时间差上下界**（复用冗余核对同款最短路推导）：**任一端点（下界或上界）在两版间不同才计为变化**，**不比较两版各自“最早事件归零”的样本时刻**（新增事件会改变另一版的归零原点，样本时刻差只是整体平移假象）；表格给出**两版区间与端点差值**，变化端点附**两版各自的原始行号、所用界值与连续推导路径**（修订版路径上的行另标注相对基准“已修改/新增/区间未改”）。事件**仅在两版中均与参考连通时可比**，否则标为**“不可比”**，隐藏端点差值与变化证据；**没有共同事件时只列新增、删除**；任一版无效或互相矛盾时，分别返回该版错误或闭合矛盾链，**不生成任何差异结论**。**分钟全程精确**：成功响应的最紧上下界、端点差值与推导路径的界值、边权一律以**十进制字符串**传输（无界仍为 `null`，行号与计数保持数值），前端按 **BigInt** 精确格式化正负差值与证据——`9007199254740993` 这类超出 JS 安全整数范围的界值也不会在页面上失真；
 - **互斥说法下的先后查询**：区间文本作**共同约束**，另输入最多 6 行**候选组**（每行 `区间A | 区间B`，两条说法只能选一条，两侧沿用区间格式），后端**枚举全部组合**与共同约束联立、**排除冲突组合**；对每个可行组合求 `t(乙) − t(甲)` 的**最紧上下界**，再跨组合取**最小下界、最大上界**（任一组合对应端无界则合并端无界）：合并下界 ≥ 1 分钟判**“甲始终先于乙”**，合并上界 ≤ −1 分钟判**“甲始终后于乙”**，否则判**“不确定”**；无可行组合时不作先后判断；
 - **最少撤回**：当若干句叙述无法同时成立时，对最多 **10 条非空有效约束**按**撤回行数递增**搜索，返回所有使剩余约束可行的**最少撤回原始行号组合**；每个方案展示剩余约束的**一条可行时间线**（撤回全部行时显示空时间线）；**空约束集视为可行**，原文已可行时返回**零撤回方案**；语法错误或超限给出明确提示；
 - **事件别名归并核对**：同一事件被记成多个名字时，在区间文本旁逐行填写 `事件名,同一事件的另一名称`，后端用**并查集按传递关系**把名称归为同一事件（A=B、B=C ⇒ A、B、C 同组），每组取区间文本中最先出现的名称作**统一事件名**，再用归并后的节点联立原区间——**同组内的区间也参与判定**（归并后要求 0 落在该行区间内）；归并造成矛盾时返回保留**原始区间行号与别名组**（每组原名称）的冲突说明，可解时展示**按统一事件归并的时间线及每组原名称**。
@@ -598,6 +598,7 @@ curl -X POST http://localhost:8080/api/repair \
 - **不可比**：事件在**任一版**中两个方向都与参考事件不通（分属互不连通的约束组件）时标为**“不可比”**，**隐藏端点差值与变化证据**（仍可显示各版能推出的区间，不连通的一版为“—”）；
 - **新增 / 删除事件**：仅修订版出现的事件标为**新增**、仅基准版出现的标为**删除**，并给出其在所在版本中相对参考事件的最紧区间（不连通或无参考时为“—”）；**没有共同事件时不做区间比较，只列新增、删除**；
 - **失败不产生差异**：任一版校验无效（逐行错误）或存在闭合矛盾链（负环）时，接口返回 `status: "invalid"`，在 `base` / `revised` 字段中**分别**带回该版与 `/api/solve` 完全相同的错误列表或矛盾链，页面左右两栏分别展示，**不生成对齐表或差异结论**；
+- **分钟字段十进制字符串**：成功响应中的最紧上下界（`base_low/base_high/revised_low/revised_high`）、端点差值（`low_delta/high_delta`）、变化证据的端点界值与推导路径每环的界值、边权（`bound`/`weight`）一律为**十进制字符串**，无界端点仍为 `null`；行号（`line`/`lines`）与各类计数保持**数值**。分钟可为任意大整数（如 `9007199254740993`）：后端用任意精度整数求解，**不截断、不转浮点**；前端按 **BigInt** 精确格式化正负差值与证据，超出 JS 安全整数范围的界值也不会在浏览器端失真（例如基准 `A,B,9007199254740992,9007199254740992` 与修订 `A,B,9007199254740993,9007199254740993` 的区间在页面上清晰可辨，端点差值精确显示为 +1 分钟）；
 - 任一输入框内容变化时，页面立即**清空旧的比较结果**，避免展示与输入不一致的结论。
 
 页面操作：在“两版比较”区两个文本框中分别粘贴（或点**“填入两版示例”**），点击**“比较两版”**；下方显示统计横幅、**共同事件区间对照表**（类型 / 事件 / 基准区间 / 修订区间 / 下界差值 / 上界差值 / 变化端点与两版所用行）以及每个变化端点的**证据卡片**（基准版、修订版各一栏的推导路径链图与明细表）。
@@ -613,7 +614,7 @@ curl -X POST http://localhost:8080/api/compare \
   }'
 ```
 
-返回（节选：参考事件为 A；新增 C 不改变 A、B 相对 A 的最紧区间，故共同事件均未变）：
+返回（节选：参考事件为 A；新增 C 不改变 A、B 相对 A 的最紧区间，故共同事件均未变；**分钟字段为十进制字符串**，计数为数值）：
 
 ```json
 {
@@ -625,33 +626,33 @@ curl -X POST http://localhost:8080/api/compare \
   "added_count": 1, "removed_count": 0, "incomparable_count": 0,
   "alignment": [
     { "kind": "common", "event": "A", "is_reference": true,
-      "base_low": 0, "base_high": 0, "revised_low": 0, "revised_high": 0,
-      "low_delta": 0, "high_delta": 0, "changed": false, "evidence": null },
+      "base_low": "0", "base_high": "0", "revised_low": "0", "revised_high": "0",
+      "low_delta": "0", "high_delta": "0", "changed": false, "evidence": null },
     { "kind": "common", "event": "B", "is_reference": false,
-      "base_low": 10, "base_high": 10, "revised_low": 10, "revised_high": 10,
-      "low_delta": 0, "high_delta": 0, "changed": false, "evidence": null },
+      "base_low": "10", "base_high": "10", "revised_low": "10", "revised_high": "10",
+      "low_delta": "0", "high_delta": "0", "changed": false, "evidence": null },
     { "kind": "added", "event": "C",
-      "base_low": null, "base_high": null, "revised_low": -5, "revised_high": -5,
+      "base_low": null, "base_high": null, "revised_low": "-5", "revised_high": "-5",
       "low_delta": null, "high_delta": null, "changed": false, "evidence": null }
   ]
 }
 ```
 
-端点变化时（`A,B,10,20` → `A,B,10,15`），变化事件的 `evidence` 按端点给出两版各自的界值与推导路径：
+端点变化时（`A,B,10,20` → `A,B,10,15`），变化事件的 `evidence` 按端点给出两版各自的界值与推导路径（界值、边权均为十进制字符串，行号为数值）：
 
 ```json
 {
   "kind": "common", "event": "B",
-  "base_low": 10, "base_high": 20, "revised_low": 10, "revised_high": 15,
-  "low_delta": 0, "high_delta": -5,
+  "base_low": "10", "base_high": "20", "revised_low": "10", "revised_high": "15",
+  "low_delta": "0", "high_delta": "-5",
   "low_changed": false, "high_changed": true, "changed": true,
   "evidence": {
     "lower": null,
     "upper": {
-      "base":    { "bound": 20, "bounded": true, "lines": [1],
-                   "path": [ { "line": 1, "kind": "upper", "bound": 20, "relation": "B−A ≤ 20" } ] },
-      "revised": { "bound": 15, "bounded": true, "lines": [1],
-                   "path": [ { "line": 1, "kind": "upper", "bound": 15, "relation": "B−A ≤ 15", "change": "changed" } ] }
+      "base":    { "bound": "20", "bounded": true, "lines": [1],
+                   "path": [ { "line": 1, "kind": "upper", "weight": "20", "bound": "20", "relation": "B−A ≤ 20" } ] },
+      "revised": { "bound": "15", "bounded": true, "lines": [1],
+                   "path": [ { "line": 1, "kind": "upper", "weight": "15", "bound": "15", "relation": "B−A ≤ 15", "change": "changed" } ] }
     }
   }
 }
@@ -836,7 +837,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080
 - `乙 → 甲` 最短路取负 = 其余约束能推出的 `t乙 − t甲` **最紧下界**（不可达 ⇒ 下界无界）；
 - 最短路经前驱指针还原为推导路径，路径上每条边映射回**原始行号与所用界值**，作为页面展示的证据。
 
-**两版比较的对齐与证据**：两版文本分别走同一套“解析 → Bellman-Ford”流程（但**不**各自平移归零再比较）：取基准文本中首次出现的共同事件作两版共享参考事件，对每个共同事件分别在两版图上用冗余核对同款单源最短路求它相对参考事件的最紧区间——参考→事件最短路为最紧上界、事件→参考最短路取负为最紧下界，最短路经前驱指针还原为**连续推导路径**。只有下界或上界在两版间不同才把事件计为变化；变化端点同时给出两版各自的界值、路径上的原始行号与所用界值（修订版路径另标注行相对基准新增/已修改/区间未改）。某一版中两个方向都不可达的事件标为不可比，不输出端点差值与证据；没有共同事件时只列新增、删除；任一版错误或负环时短路返回该版结果，不构造对齐结论。
+**两版比较的对齐与证据**：两版文本分别走同一套“解析 → Bellman-Ford”流程（但**不**各自平移归零再比较）：取基准文本中首次出现的共同事件作两版共享参考事件，对每个共同事件分别在两版图上用冗余核对同款单源最短路求它相对参考事件的最紧区间——参考→事件最短路为最紧上界、事件→参考最短路取负为最紧下界，最短路经前驱指针还原为**连续推导路径**。只有下界或上界在两版间不同才把事件计为变化；变化端点同时给出两版各自的界值、路径上的原始行号与所用界值（修订版路径另标注行相对基准新增/已修改/区间未改）。某一版中两个方向都不可达的事件标为不可比，不输出端点差值与证据；没有共同事件时只列新增、删除；任一版错误或负环时短路返回该版结果，不构造对齐结论。分钟可为任意大整数：求解全程任意精度整数，成功响应的分钟字段（最紧上下界、端点差值、证据界值与推导路径的界值、边权）以**十进制字符串**传输（无界端点为 `null`，行号与计数保持数值），前端按 **BigInt** 精确格式化正负差值与证据，超出 JS 安全整数范围的分钟（如 `9007199254740993`）也不会在浏览器端失真。
 
 **冲突单行修订建议的推导**：对每条原始行，删去其两条边后对其余行运行 Bellman-Ford——仍有负环则跳过该行；可解时用与冗余核对相同的两条单源最短路求出这两个事件时间差的最紧可行区间 `[dl, dh]`。`dh < 原下界` 时只把下界放宽到 `dh`（证据为推出最紧上界的路径），`dl > 原上界` 时只把上界放宽到 `dl`（证据为推出最紧下界的路径）；区间含整数端点，移到边界即首次相交的整数分钟，改动量最小。
 
@@ -867,12 +868,12 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080
 - `POST /api/redundancy` — 请求体 `{"text": "...", "line": 5}`（`line` 为原始行号），返回：
   - `status: "ok"`：`verdict`（`"removable"` 可删 / `"necessary"` 必要）、所选行 `a/b/low/high`、推导区间 `derived_low/derived_high`（无界端点为 `null`，另有 `lower_bounded/upper_bounded` 布尔标记）、有界端点的推导路径 `lower_path/upper_path`（每环含 `line` 原始行号、`kind`/`kind_label` 所用界、`bound` 界值、`relation` 含义）；
   - `status: "conflict"` / `status: "error"`：与 `/api/solve` 完全相同的现有求解结果（原约束冲突或输入无效时沿用）。
-- `POST /api/compare` — 请求体 `{"base": "...", "revised": "..."}`，两版各自独立解析与联立：
-  - `status: "ok"`：`reference`（两版共享参考事件，即基准中首次出现的共同事件；无共同事件时为 `null`），`base`/`revised` 各含 `event_count/line_count`，计数 `common_count/comparable_count/changed_count/added_count/removed_count/incomparable_count`，以及 `alignment` 对齐列表：
-    - 共同事件（两版均与参考连通）：`kind: "common"`、`is_reference`，两版界值 `base_low/base_high/revised_low/revised_high`（无界端点为 `null`）、端点差值 `low_delta/high_delta`（两端在两版中都有界时为修订界 − 基准界，否则为 `null`）、`low_changed/high_changed/changed`；`changed` 时带 `evidence`：`lower`/`upper` 仅对变化端点非空，各含 `base`/`revised` 两版的 `bound`（该端点界值，无界为 `null`）、`bounded`、`lines`（路径所用原始行号，去重保序）与 `path`（连续推导路径每环的行号、所用界、界值、含义；修订版路径另含 `change`：`added`/`changed`/`unchanged`）；
+- `POST /api/compare` — 请求体 `{"base": "...", "revised": "..."}`，两版各自独立解析与联立。**成功响应的分钟字段一律为十进制字符串**（分钟可为任意大整数，如 `9007199254740993`，不截断、不转浮点；无界端点为 `null`），**行号与计数保持数值**：
+  - `status: "ok"`：`reference`（两版共享参考事件，即基准中首次出现的共同事件；无共同事件时为 `null`），`base`/`revised` 各含 `event_count/line_count`，计数 `common_count/comparable_count/changed_count/added_count/removed_count/incomparable_count`（均为数值），以及 `alignment` 对齐列表：
+    - 共同事件（两版均与参考连通）：`kind: "common"`、`is_reference`，两版界值 `base_low/base_high/revised_low/revised_high`（字符串，无界端点为 `null`）、端点差值 `low_delta/high_delta`（字符串；两端在两版中都有界时为修订界 − 基准界，否则为 `null`）、`low_changed/high_changed/changed`；`changed` 时带 `evidence`：`lower`/`upper` 仅对变化端点非空，各含 `base`/`revised` 两版的 `bound`（该端点界值，字符串，无界为 `null`）、`bounded`、`lines`（路径所用原始行号，数值，去重保序）与 `path`（连续推导路径每环的行号——数值、所用界、界值 `bound` 与边权 `weight`——字符串、含义；修订版路径另含 `change`：`added`/`changed`/`unchanged`）；
     - 不可比共同事件：`kind: "incomparable"`（任一版中与参考事件两个方向都不通），`low_delta/high_delta` 为 `null`、`evidence` 为 `null`，两版界值字段随连通情况返回（不连通的一版端点为 `null`）；
     - 新增 / 删除：`kind: "added"` / `"removed"`，仅所在版本的 `revised_low/revised_high` 或 `base_low/base_high` 有值（相对参考的最紧区间，不连通或无参考时为 `null`）；
-  - `status: "invalid"`：不生成差异结论；`base`/`revised` 分别为该版完整求解结果——`status: "error"` 带逐行 `errors`（含原始行号），或 `status: "conflict"` 带闭合矛盾链；另一版若可解则带与 `/api/solve` 相同的 `timeline/differences`。
+  - `status: "invalid"`：不生成差异结论；`base`/`revised` 分别为该版完整求解结果——`status: "error"` 带逐行 `errors`（含原始行号），或 `status: "conflict"` 带闭合矛盾链；另一版若可解则带与 `/api/solve` 相同的 `timeline/differences`（`invalid` 响应沿用 `/api/solve` 现有协议，分钟字段为数值）。
 - `POST /api/repair` — 请求体 `{"text": "..."}`，复用现有解析与求解给出冲突单行修订建议：
   - `status: "conflict"`：`conflict`（与 `/api/solve` 相同的闭合矛盾链）、`checked_lines`（尝试过的行数）、`suggestion_count` 与 `suggestions` 建议列表（按改动分钟数、原始行号升序；每条含 `line` 原始行号、`a/b/low/high` 原行区间、`endpoint`/`endpoint_label` 被放宽的端点、`old_value/new_value`、`change_minutes` 最小改动分钟数、`new_line` 替换后的整行、`derived_low/derived_high` 其余行推导的最紧可行区间、`forcing_lines` 迫使该端点移动的原始行号、`forcing_path` 界值推导链——每环含行号、所用界、界值与含义）；`suggestions` 为空即无单行修复方案；
   - `status: "ok"`：原文本无冲突，`message` 说明无需修订；

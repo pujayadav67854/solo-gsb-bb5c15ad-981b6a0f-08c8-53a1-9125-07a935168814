@@ -33,7 +33,11 @@ Bellman-Ford 联立。同组内的区间（两端归并为同一事件）成为�
 （新增事件会改变另一版的归零原点，样本时刻差只是平移假象）。事件在任一版中两个方向
 都与参考不通时标为不可比，不给出端点差值与变化证据；没有共同事件时只列新增、删除。
 变化端点给出两版各自的连续推导路径（原始行号、所用界值），修订版路径上的行另标注
-相对基准是新增/已修改/区间未改。
+相对基准是新增/已修改/区间未改。成功响应的分钟协议与 /api/tolerance 相同：最紧上下界、
+端点差值、变化证据的端点界值及推导路径每环的界值与边权一律以十进制字符串传输
+（无界仍为 null），行号与计数保持数值——分钟可能超出 JS Number 安全整数范围
+（如 9007199254740993），数值传输会被浏览器 JSON.parse 转成双精度而丢失末位，
+使相差 1 分钟的两版区间在页面上看似相同却提示变化。
 
 冲突单行修订建议（suggest_repairs）：文本语法有效但联立矛盾时，逐行暂时移除该行的
 上、下界约束；其余行仍矛盾的行排除，其余可解时用冗余核对同款最短路求这两个事件
@@ -644,6 +648,43 @@ def check_redundancy(text: str, line: int) -> dict:
 
 # ---------- 两版比较 ----------
 
+# /api/compare 成功响应协议：分钟字段（对齐项的最紧上下界 base_low/base_high/
+# revised_low/revised_high、端点差值 low_delta/high_delta、变化证据的端点界值 bound、
+# 推导路径每环的边权 weight 与界值 bound）一律以十进制字符串传输，无界端点仍为 null；
+# 行号（line/lines）与各类计数保持数值。分钟可能超出 JS Number 安全整数范围
+# （如 9007199254740993）：数值传输会被前端 JSON.parse 转成双精度而丢失末位，
+# 使相差 1 分钟的两版区间在页面上看似相同。求解全程任意精度整数，仅在组装成功响应的
+# 边界处把分钟转为十进制字符串；前端按 BigInt 精确格式化正负差值与证据。
+# （任一版无效/矛盾时的 invalid 响应沿用 /api/solve 现有协议，不在此转换范围。）
+_COMPARE_ENTRY_MINUTE_FIELDS = ("base_low", "base_high", "revised_low", "revised_high", "low_delta", "high_delta")
+_COMPARE_STEP_MINUTE_FIELDS = ("weight", "bound")
+
+
+def _str_or_none(v: int | None) -> str | None:
+    """分钟字段转十进制字符串；无界（None）保持 None。"""
+    return str(v) if v is not None else None
+
+
+def _stringify_compare_ok(result: dict) -> None:
+    """把两版比较成功响应中的分钟字段原地转为十进制字符串（行号与计数保持数值）。"""
+    for entry in result["alignment"]:
+        for key in _COMPARE_ENTRY_MINUTE_FIELDS:
+            entry[key] = _str_or_none(entry[key])
+        evidence = entry["evidence"]
+        if not evidence:
+            continue
+        for side in ("lower", "upper"):
+            side_ev = evidence[side]
+            if side_ev is None:
+                continue
+            for version in ("base", "revised"):
+                part = side_ev[version]
+                part["bound"] = _str_or_none(part["bound"])
+                for step in part["path"]:
+                    for key in _COMPARE_STEP_MINUTE_FIELDS:
+                        step[key] = str(step[key])
+
+
 def _bounds_relative_to(system: dict, reference: str, target: str) -> dict:
     """target 相对参考事件 reference 的最紧时间差区间 [下界, 上界] 与两端连续推导路径。
 
@@ -699,6 +740,10 @@ def compare_texts(base_text: str, revised_text: str) -> dict:
     归零”的样本时刻（新增事件会改变另一版的归零原点，样本时刻差只是整体平移假象）。
     事件在任一版中两个方向都与参考不通时标为不可比，不给出端点差值与变化证据。
     没有共同事件时只列新增、删除事件。变化端点附两版各自的连续推导路径证据。
+
+    成功响应的分钟字段（最紧上下界、端点差值、证据界值与推导路径的界值、边权）按
+    /api/compare 协议一律转为十进制字符串（无界仍为 None），行号与计数保持数值；
+    求解全程任意精度整数，仅在返回前的边界处转换，不截断、不转浮点。
     """
     base_rows, base_res = _parse_and_solve(base_text)
     revised_rows, revised_res = _parse_and_solve(revised_text)
@@ -850,7 +895,7 @@ def compare_texts(base_text: str, revised_text: str) -> dict:
             "evidence": None,
         })
 
-    return {
+    result = {
         "status": "ok",
         "reference": reference,
         "base": {
@@ -869,6 +914,9 @@ def compare_texts(base_text: str, revised_text: str) -> dict:
         "removed_count": len(b_set - r_set),
         "alignment": alignment,
     }
+    # 成功响应的分钟字段按协议转为十进制字符串（无界仍为 None，行号与计数保持数值）
+    _stringify_compare_ok(result)
+    return result
 
 
 # ---------- 冲突单行修订建议 ----------
